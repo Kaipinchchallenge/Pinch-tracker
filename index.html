@@ -1,0 +1,181 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ground Pinch KPH Challenge</title>
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:#0b1020;color:#f1f5f9;font-family:Arial,sans-serif;padding:18px}
+main{max-width:900px;margin:auto}
+h1{color:#64f4ac;margin-bottom:6px}
+p{color:#aab7ce}
+.panel{background:#151e32;border:1px solid #293650;border-radius:15px;padding:17px;margin:16px 0}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:#0d1527;padding:13px;border-radius:10px;text-align:center}
+.stat strong{display:block;font-size:24px;color:#64f4ac}
+input,button{font:inherit;border-radius:9px;padding:12px}
+input{width:100%;background:#0b1020;border:1px solid #455574;color:white;margin:8px 0}
+button{border:0;background:#64f4ac;color:#07130d;font-weight:bold;cursor:pointer}
+button:active{transform:scale(.98)}
+button.secondary{background:#293650;color:white}
+.entry{display:flex;gap:8px;align-items:center}
+.entry input{min-width:0}
+.entry button{white-space:nowrap}
+.progress{height:10px;background:#293650;border-radius:10px;overflow:hidden}
+#bar{height:100%;width:0;background:#64f4ac;transition:width .2s}
+.board{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}
+.tile{padding:10px 2px;background:#0d1527;border:1px solid #34425c;border-radius:8px;text-align:center;font-size:13px;color:#dbe5f5}
+.tile.hit{background:#14583e;border-color:#64f4ac;color:white}
+.tile.hit strong{display:block;color:#64f4ac}
+.small{font-size:13px}
+#message{min-height:20px;color:#64f4ac}
+ol{padding-left:24px}
+li{padding:4px 0}
+@media(min-width:600px){.board{grid-template-columns:repeat(10,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<main>
+<h1>GROUND PINCH CHALLENGE</h1>
+<p>Hit every speed from 1 to 190 KPH. How far can you go?</p>
+
+<section class="panel">
+<div class="stats">
+<div class="stat"><strong id="best">0</strong><span class="small">Best KPH</span></div>
+<div class="stat"><strong id="collected">0/190</strong><span class="small">Speeds hit</span></div>
+<div class="stat"><strong id="attempts">0/5</strong><span class="small">Attempts today</span></div>
+</div>
+<p id="message">Enter your pinch speed below!</p>
+<label for="speed">Your ground pinch speed (1–190 KPH)</label>
+<form id="logForm" class="entry">
+<input id="speed" type="number" min="1" max="190" step="1" placeholder="Enter KPH" required>
+<button type="submit">LOG KPH</button>
+</form>
+<p class="small">Each logged speed uses one of your five daily attempts. Only your first hit for each speed counts toward collection.</p>
+</section>
+
+<section class="panel">
+<h2>Your progress</h2>
+<div class="progress"><div id="bar"></div></div>
+<p id="percent">0% complete</p>
+<h3>Speeds you've collected</h3>
+<div id="collection"><p>No speeds collected yet. Go hit one!</p></div>
+</section>
+
+<section class="panel">
+<h2>All 190 speeds</h2>
+<p class="small">Green means you've hit that exact KPH.</p>
+<div id="board" class="board"></div>
+</section>
+
+<section class="panel">
+<h2>Session history</h2>
+<ol id="history"><li>No attempts yet.</li></ol>
+<button class="secondary" id="export">Export my data</button>
+<button class="secondary" id="reset">Reset all data</button>
+<p class="small">Progress saves in this browser on this device.</p>
+</section>
+</main>
+<script>
+(function(){
+const KEY="groundPinchTrackerV1";
+const today=()=>new Date().toLocaleDateString("en-CA");
+let data;
+try {
+ data=JSON.parse(localStorage.getItem(KEY)) || {};
+} catch(e) { data={}; }
+if(!Array.isArray(data.hits)) data.hits=[];
+if(!Array.isArray(data.history)) data.history=[];
+if(data.day!==today()){data.day=today();data.daily=0;}
+if(!Number.isInteger(data.daily)) data.daily=0;
+
+const $=id=>document.getElementById(id);
+function save(){localStorage.setItem(KEY,JSON.stringify(data));}
+function render(){
+ const best=data.history.reduce((m,x)=>Math.max(m,x.kph),0);
+ $("best").textContent=best;
+ $("collected").textContent=data.hits.length+"/190";
+ $("attempts").textContent=data.daily+"/5";
+ const pct=Math.round(data.hits.length/190*100);
+ $("bar").style.width=pct+"%";
+ $("percent").textContent=pct+"% complete";
+ const board=$("board");
+ board.replaceChildren();
+ for(let n=1;n<=190;n++){
+  const tile=document.createElement("div");
+  tile.className="tile"+(data.hits.includes(n)?" hit":"");
+  tile.textContent=n+" KPH";
+  if(data.hits.includes(n)){
+   const mark=document.createElement("strong");
+   mark.textContent="✓ HIT";
+   tile.appendChild(mark);
+  }
+  board.appendChild(tile);
+ }
+ const collection=$("collection");
+ collection.replaceChildren();
+ if(!data.hits.length){
+  collection.textContent="No speeds collected yet. Go hit one!";
+ } else {
+  const list=document.createElement("p");
+  list.textContent=[...data.hits].sort((a,b)=>a-b).map(n=>n+" KPH").join(" · ");
+  collection.appendChild(list);
+ }
+ const history=$("history");
+ history.replaceChildren();
+ if(!data.history.length){
+  const li=document.createElement("li");li.textContent="No attempts yet.";history.appendChild(li);
+ } else {
+  data.history.slice(-20).reverse().forEach(x=>{
+   const li=document.createElement("li");
+   li.textContent=x.kph+" KPH — "+x.time;
+   history.appendChild(li);
+  });
+ }
+}
+$("logForm").addEventListener("submit",function(e){
+ e.preventDefault();
+ if(data.day!==today()){data.day=today();data.daily=0;}
+ const n=Number($("speed").value);
+ if(!Number.isInteger(n)||n<1||n>190){
+  $("message").textContent="Enter a whole number from 1 to 190.";
+  return;
+ }
+ if(data.daily>=5){
+  $("message").textContent="You've used all five attempts today. Come back tomorrow!";
+  return;
+ }
+ data.daily++;
+ data.hits=data.hits.filter(x=>x>=1&&x<=190);
+ if(!data.hits.includes(n)){
+  data.hits.push(n);
+  $("message").textContent="Logged "+n+" KPH! New speed collected!";
+ } else {
+  $("message").textContent="Logged "+n+" KPH! You've already collected that speed.";
+ }
+ data.history.push({kph:n,time:new Date().toLocaleString()});
+ save();render();
+ $("speed").value="";
+});
+$("export").addEventListener("click",function(){
+ const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+ const url=URL.createObjectURL(blob);
+ const a=document.createElement("a");
+ a.href=url;a.download="ground-pinch-progress.json";a.click();
+ URL.revokeObjectURL(url);
+});
+$("reset").addEventListener("click",function(){
+ if(confirm("Erase all your saved speeds and history?")){
+  data={hits:[],history:[],day:today(),daily:0};
+  save();render();$("message").textContent="Progress reset.";
+ }
+});
+save();render();
+})();
+</script>
+</body>
+</html>
